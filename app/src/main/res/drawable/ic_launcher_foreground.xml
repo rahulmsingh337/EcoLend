@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Center circle base with subtle shadow -->
+    <path
+        android:fillColor="#15000000"
+        android:pathData="M54,26 A28,28 0 1,0 54,82 A28,28 0 1,0 54,26 Z" />
+    <path
+        android:fillColor="#E8F5E9"
+        android:pathData="M54,24 A28,28 0 1,0 54,80 A28,28 0 1,0 54,24 Z" />
+
+    <!-- Circular sharing arrow arc (top-right to bottom-left) -->
+    <path
+        android:fillColor="#2E7D32"
+        android:pathData="M68,34 L68,43 L59,43 L63.5,38.5 C59.8,35.4 54.8,34 49.5,35 C42.2,36.5 36.5,42.2 35,49.5 C34.5,52 34.7,54.4 35.5,56.6 L31.5,58 C30.3,55.1 30,52 30.7,48.8 C32.7,39.6 39.8,32.4 49,30.5 C55.8,29.1 62.4,31.2 67.2,35.3 Z" />
+
+    <!-- Circular sharing arrow arc (bottom-left to top-right) -->
+    <path
+        android:fillColor="#1B5E20"
+        android:pathData="M40,70 L40,61 L49,61 L44.5,65.5 C48.2,68.6 53.2,70 58.5,69 C65.8,67.5 71.5,61.8 73,54.5 C73.5,52 73.3,49.6 72.5,47.4 L76.5,46 C77.7,48.9 78,52 77.3,55.2 C75.3,64.4 68.2,71.6 59,73.5 C52.2,74.9 45.6,72.8 40.8,68.7 Z" />
+
+    <!-- Center sprout + hand icon (clean silhouette) -->
+    <!-- Heart / Leaf in Center -->
+    <path
+        android:fillColor="#00897B"
+        android:pathData="M54,42 C51,37 44,38 44,44 C44,50 54,58 54,58 C54,58 64,50 64,44 C64,38 57,37 54,42 Z" />
+
+    <!-- Hand holding token beneath center -->
+    <path
+        android:fillColor="#43A047"
+        android:pathData="M46,55 C46,55 49,53 54,53 C59,53 62,55 62,55 C63,56.5 61,59 58,59 L50,59 C47,59 45,56.5 46,55 Z" />
+
+    <!-- Accent star / spark of community -->
+    <path
+        android:fillColor="#FFB300"
+        android:pathData="M54,47 L55.2,49.5 L57.7,50.7 L55.2,51.9 L54,54.4 L52.8,51.9 L50.3,50.7 L52.8,49.5 Z" />
+</vector>
