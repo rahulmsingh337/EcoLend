@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.OutdoorGrill
 import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Yard
@@ -76,21 +77,21 @@ fun getCategoryIcon(category: String): ImageVector {
 
 @Composable
 fun AvailabilityChip(availability: String, modifier: Modifier = Modifier) {
-    val (bgColor, textColor, label) = when (availability) {
-        "AVAILABLE_NOW" -> Triple(
+    val (bgColor, textColor, label) = when (availability.uppercase()) {
+        "AVAILABLE", "AVAILABLE_NOW" -> Triple(
             Color(0xFFE8F5E9),
             Color(0xFF1B5E20),
-            "Available Now"
-        )
-        "BORROWED" -> Triple(
-            Color(0xFFFFF3E0),
-            Color(0xFFE65100),
-            "Currently Borrowed"
+            "Available"
         )
         "RESERVED" -> Triple(
             Color(0xFFE3F2FD),
             Color(0xFF0D47A1),
             "Reserved"
+        )
+        "BORROWED" -> Triple(
+            Color(0xFFFFF3E0),
+            Color(0xFFE65100),
+            "Borrowed"
         )
         else -> Triple(
             Color(0xFFF5F5F5),
@@ -102,15 +103,15 @@ fun AvailabilityChip(availability: String, modifier: Modifier = Modifier) {
     Surface(
         color = bgColor,
         shape = RoundedCornerShape(12.dp),
-        modifier = modifier
+        modifier = modifier.testTag("status_indicator_${label.lowercase().replace(" ", "_")}")
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(6.dp)
+                    .size(7.dp)
                     .clip(CircleShape)
                     .background(textColor)
             )
@@ -119,7 +120,7 @@ fun AvailabilityChip(availability: String, modifier: Modifier = Modifier) {
                 text = label,
                 color = textColor,
                 fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -310,7 +311,10 @@ fun ItemCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    AvailabilityChip(availability = item.availability)
+                    AvailabilityChip(
+                        availability = item.availability,
+                        modifier = Modifier.testTag("item_status_indicator_${item.id}")
+                    )
                     if (onCapturePhoto != null) {
                         IconButton(
                             onClick = onCapturePhoto,
@@ -399,11 +403,41 @@ fun ItemCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Eco Impact Badge
-            EcoImpactBadge(
-                wasteKg = item.estimatedWasteSavedKg,
-                dollarsSaved = item.estimatedDollarSaved
-            )
+            // Eco Impact Badge & Max Borrow Duration
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                EcoImpactBadge(
+                    wasteKg = item.estimatedWasteSavedKg,
+                    dollarsSaved = item.estimatedDollarSaved
+                )
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                    modifier = Modifier.testTag("item_max_duration_${item.id}")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "Max ${item.maxBorrowDurationDays}d",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 

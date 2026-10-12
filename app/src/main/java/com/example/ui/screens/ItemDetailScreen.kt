@@ -32,6 +32,8 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.RateReview
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Star
@@ -48,6 +50,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -211,6 +214,86 @@ fun ItemDetailScreen(
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            // Equipment Specs & Max Borrow Duration Card
+            Spacer(modifier = Modifier.height(14.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("detail_specs_card"),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Schedule,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${item.maxBorrowDurationDays} Days",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Text(
+                            text = "Max Duration",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = item.condition,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Condition",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = if (item.depositAmount > 0) "$${item.depositAmount.toInt()}" else "None",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Deposit Hold",
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
 
             // Item Condition Photo (Stored Local Metadata)
             Spacer(modifier = Modifier.height(14.dp))
@@ -589,6 +672,24 @@ fun ItemDetailScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Neighbor Reviews (${itemReviews.size})", fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                TextButton(
+                    onClick = { viewModel.openReviewDialogForItem(item) },
+                    modifier = Modifier.testTag("detail_leave_review_btn")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.RateReview,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Leave Review",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -598,12 +699,29 @@ fun ItemDetailScreen(
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "No reviews yet. Be the first neighbor to borrow and leave a review!",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(12.dp)
-                    )
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "No reviews yet. Be the first neighbor to review the tool quality & lender reliability!",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { viewModel.openReviewDialogForItem(item) },
+                            modifier = Modifier.testTag("detail_write_first_review_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.RateReview,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Write First Review", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             } else {
                 itemReviews.forEach { review ->

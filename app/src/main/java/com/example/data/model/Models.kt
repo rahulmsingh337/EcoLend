@@ -29,7 +29,13 @@ data class LendItem(
     val isFavorite: Boolean = false,
     val iconCategory: String = "TOOLS", // "TOOLS", "GARDEN", "KITCHEN", "CAMPING", "CLEANING", "PARTY", "GAMES"
     val photoUri: String? = null,
-    val maxBorrowDurationDays: Int = 7
+    val maxBorrowDurationDays: Int = 7,
+    val availableFromMillis: Long? = null,
+    val availableUntilMillis: Long? = null,
+    val pickupLocationName: String? = null,
+    val pickupAddress: String? = null,
+    val pickupNotes: String? = null,
+    val isFuzzyPrivacy: Boolean = true
 )
 
 @Entity(tableName = "borrow_requests")

@@ -206,6 +206,19 @@ fun PaymentSheetDialog(
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Max Allowed Duration:", fontSize = 13.sp)
+                                Text(
+                                    text = "${item.maxBorrowDurationDays} days",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),

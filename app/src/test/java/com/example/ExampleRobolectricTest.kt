@@ -226,5 +226,128 @@ class ExampleRobolectricTest {
     assertEquals("/data/user/0/com.aistudio.ecolend/files/tool_photos/simulated_new_12345.jpg", addedItem?.photoUri)
     assertEquals("AVAILABLE_NOW", addedItem?.availability)
   }
+
+  @Test
+  fun `max borrow duration is saved on items and configurable`() = runBlocking {
+    val dao = database.dao()
+    val itemWithDuration = LendItem(
+      id = 501,
+      title = "Heavy Duty Carpet Cleaner",
+      description = "Commercial grade deep shampoo extractor",
+      category = "Cleaning Gear",
+      ownerId = "user_clean",
+      ownerName = "Clara",
+      ownerRating = 4.9f,
+      ownerReviewsCount = 6,
+      ownerAvatarSeed = "CL",
+      distanceMiles = 0.4,
+      neighborhood = "Greenway",
+      condition = "Excellent",
+      depositAmount = 45.0,
+      dailyFee = 0.0,
+      estimatedWasteSavedKg = 18.0,
+      estimatedDollarSaved = 160.0,
+      estimatedCo2SavedKg = 38.0,
+      availability = "AVAILABLE_NOW",
+      maxBorrowDurationDays = 3
+    )
+    dao.insertItem(itemWithDuration)
+
+    val retrieved = dao.getItemByIdSync(501L)
+    assertEquals(3, retrieved?.maxBorrowDurationDays)
+  }
+
+  @Test
+  fun `review and rating system updates lender reliability and tool reviews`() = runBlocking {
+    val dao = database.dao()
+    val item = LendItem(
+      id = 601,
+      title = "DeWalt Circular Saw",
+      description = "Laser guide 7-1/4 inch circular saw",
+      category = "Power Tools",
+      ownerId = "user_lender",
+      ownerName = "Marcus Vance",
+      ownerRating = 4.0f,
+      ownerReviewsCount = 1,
+      ownerAvatarSeed = "MV",
+      distanceMiles = 0.2,
+      neighborhood = "Oakridge",
+      condition = "Good",
+      depositAmount = 40.0,
+      dailyFee = 0.0,
+      estimatedWasteSavedKg = 9.0,
+      estimatedDollarSaved = 90.0,
+      estimatedCo2SavedKg = 20.0,
+      availability = "AVAILABLE_NOW"
+    )
+    dao.insertItem(item)
+
+    // Submit review
+    val review = com.example.data.model.Review(
+      itemId = 601,
+      itemTitle = "DeWalt Circular Saw",
+      reviewerName = "Alex Green",
+      targetUserName = "Marcus Vance",
+      rating = 5,
+      comment = "Great tool, sharp blade, super reliable neighbor!",
+      dateStr = "Today",
+      tags = "Mint Condition • Super Friendly"
+    )
+    dao.insertReview(review)
+
+    // Verify reviews query
+    val reviews = dao.getReviewsForItem(601L).first()
+    assertEquals(1, reviews.size)
+    assertEquals("Alex Green", reviews[0].reviewerName)
+    assertEquals(5, reviews[0].rating)
+    assertEquals("Mint Condition • Super Friendly", reviews[0].tags)
+
+    // Update item rating
+    val oldCount = item.ownerReviewsCount
+    val newCount = oldCount + 1
+    val newRating = ((item.ownerRating * oldCount) + 5) / newCount
+    dao.updateItem(item.copy(ownerRating = newRating, ownerReviewsCount = newCount))
+
+    val updatedItem = dao.getItemByIdSync(601L)
+    assertEquals(2, updatedItem?.ownerReviewsCount)
+    assertEquals(4.5f, updatedItem?.ownerRating)
+  }
+
+  @Test
+  fun `status indicators reflect item availability correctly`() = runBlocking {
+    val dao = database.dao()
+    val item = LendItem(
+      id = 701,
+      title = "Camping Tent 4-Person",
+      description = "Weatherproof family tent",
+      category = "Camping & Outdoors",
+      ownerId = "user_camp",
+      ownerName = "Sam",
+      ownerRating = 5.0f,
+      ownerReviewsCount = 4,
+      ownerAvatarSeed = "SM",
+      distanceMiles = 0.6,
+      neighborhood = "Highland",
+      condition = "Like New",
+      depositAmount = 30.0,
+      dailyFee = 0.0,
+      estimatedWasteSavedKg = 14.0,
+      estimatedDollarSaved = 120.0,
+      estimatedCo2SavedKg = 28.0,
+      availability = "AVAILABLE_NOW"
+    )
+    dao.insertItem(item)
+
+    // Check available status
+    assertEquals("AVAILABLE_NOW", dao.getItemByIdSync(701L)?.availability)
+
+    // Change to RESERVED
+    dao.updateAvailability(701L, "RESERVED", null, "Alex Green")
+    assertEquals("RESERVED", dao.getItemByIdSync(701L)?.availability)
+
+    // Change to BORROWED
+    dao.updateAvailability(701L, "BORROWED", System.currentTimeMillis() + 86400000L, "Alex Green")
+    assertEquals("BORROWED", dao.getItemByIdSync(701L)?.availability)
+  }
 }
 

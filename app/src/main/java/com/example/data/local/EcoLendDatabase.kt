@@ -22,7 +22,7 @@ import com.example.data.model.WishlistEntry
         UserProfile::class,
         WishlistEntry::class
     ],
-    version = 4,
+    version = 6,
     exportSchema = false
 )
 abstract class EcoLendDatabase : RoomDatabase() {

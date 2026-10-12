@@ -54,6 +54,9 @@ interface EcoLendDao {
     @Query("UPDATE lend_items SET photoUri = :uri WHERE id = :id")
     suspend fun updateItemPhoto(id: Long, uri: String)
 
+    @Query("UPDATE lend_items SET maxBorrowDurationDays = :durationDays WHERE id = :id")
+    suspend fun updateMaxBorrowDuration(id: Long, durationDays: Int)
+
     // --- Borrow Requests ---
     @Query("SELECT * FROM borrow_requests ORDER BY createdAtMillis DESC")
     fun getAllRequests(): Flow<List<BorrowRequest>>

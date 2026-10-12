@@ -89,17 +89,21 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
         selectedAvailability,
         maxDistanceMiles
     ) { items, query, category, availability, maxDist ->
+        val trimmed = query.trim()
         items.filter { item ->
-            val matchesQuery = query.isBlank() ||
-                    item.title.contains(query, ignoreCase = true) ||
-                    item.description.contains(query, ignoreCase = true) ||
-                    item.neighborhood.contains(query, ignoreCase = true)
+            val matchesQuery = trimmed.isBlank() ||
+                    item.title.contains(trimmed, ignoreCase = true) ||
+                    item.description.contains(trimmed, ignoreCase = true) ||
+                    item.category.contains(trimmed, ignoreCase = true) ||
+                    item.neighborhood.contains(trimmed, ignoreCase = true) ||
+                    item.condition.contains(trimmed, ignoreCase = true)
 
-            val matchesCategory = category == "All" || item.category == category
+            val matchesCategory = category == "All" || item.category.equals(category, ignoreCase = true)
 
             val matchesAvailability = when (availability) {
-                "Available" -> item.availability == "AVAILABLE_NOW"
-                "Borrowed" -> item.availability == "BORROWED" || item.availability == "RESERVED"
+                "Available" -> item.availability == "AVAILABLE_NOW" || item.availability == "AVAILABLE"
+                "Reserved" -> item.availability == "RESERVED"
+                "Borrowed" -> item.availability == "BORROWED"
                 else -> true
             }
 
@@ -206,6 +210,22 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
         _itemForReview.value = request
     }
 
+    fun openReviewDialogForItem(item: LendItem) {
+        _itemForReview.value = BorrowRequest(
+            id = 0,
+            itemId = item.id,
+            itemTitle = item.title,
+            requesterName = userProfile.value.name,
+            ownerName = item.ownerName,
+            startDateMillis = System.currentTimeMillis() - 86400000L,
+            endDateMillis = System.currentTimeMillis(),
+            status = "RETURNED",
+            depositPaid = item.depositAmount,
+            feePaid = item.dailyFee,
+            note = "Community review for ${item.title}"
+        )
+    }
+
     fun closeReviewDialog() {
         _itemForReview.value = null
     }
@@ -256,6 +276,14 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
             repository.updateItemPhoto(item.id, photoPath)
             _scanFeedbackMessage.value = "Photo captured for '${item.title}'! Saved to local item metadata."
             _itemForPhotoCapture.value = null
+        }
+    }
+
+    fun updateItemMaxBorrowDuration(item: LendItem, newDurationDays: Int) {
+        if (newDurationDays <= 0) return
+        viewModelScope.launch {
+            repository.updateMaxBorrowDuration(item.id, newDurationDays)
+            _scanFeedbackMessage.value = "Max loan duration updated to $newDurationDays days for '${item.title}'."
         }
     }
 
@@ -460,9 +488,17 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
         condition: String,
         wasteKg: Double,
         photoUri: String? = null,
-        maxBorrowDurationDays: Int = 7
+        maxBorrowDurationDays: Int = 7,
+        availableFromMillis: Long? = null,
+        availableUntilMillis: Long? = null,
+        pickupLocationName: String? = null,
+        pickupAddress: String? = null,
+        pickupDistanceMiles: Double = 0.2,
+        isFuzzyPrivacy: Boolean = true,
+        pickupNotes: String? = null
     ) {
         viewModelScope.launch {
+            val locationLabel = pickupLocationName?.ifBlank { null } ?: userProfile.value.neighborhood
             val newItem = LendItem(
                 title = title,
                 description = description,
@@ -472,8 +508,8 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
                 ownerRating = 5.0f,
                 ownerReviewsCount = 0,
                 ownerAvatarSeed = "AG",
-                distanceMiles = 0.1,
-                neighborhood = userProfile.value.neighborhood,
+                distanceMiles = pickupDistanceMiles,
+                neighborhood = locationLabel,
                 condition = condition,
                 depositAmount = deposit,
                 dailyFee = 0.0,
@@ -490,7 +526,13 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
                     else -> "TOOLS"
                 },
                 photoUri = photoUri,
-                maxBorrowDurationDays = maxBorrowDurationDays
+                maxBorrowDurationDays = maxBorrowDurationDays,
+                availableFromMillis = availableFromMillis,
+                availableUntilMillis = availableUntilMillis,
+                pickupLocationName = locationLabel,
+                pickupAddress = pickupAddress,
+                pickupNotes = pickupNotes,
+                isFuzzyPrivacy = isFuzzyPrivacy
             )
             repository.addNewItem(newItem)
             _showAddListingDialog.value = false

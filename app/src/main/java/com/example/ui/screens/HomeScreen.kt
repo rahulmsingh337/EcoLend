@@ -37,6 +37,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -123,118 +124,26 @@ fun HomeScreen(
                 }
             }
 
-            // 2. Community Waste Diversion Banner
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(
-                                        MaterialTheme.colorScheme.primaryContainer,
-                                        MaterialTheme.colorScheme.surfaceVariant
-                                    )
-                                )
-                            )
-                            .padding(16.dp)
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Eco,
-                                        contentDescription = null,
-                                        tint = EcoGreenPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Neighborhood Waste Impact",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = EcoGreenDark
-                                    )
-                                }
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                                ) {
-                                    Text(
-                                        text = userProfile.neighborhood.take(16),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text(
-                                        text = "342.8 kg",
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = EcoGreenDark
-                                    )
-                                    Text("Waste Prevented", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Column {
-                                    Text(
-                                        text = "$4,820",
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = EcoAmber
-                                    )
-                                    Text("Community Saved", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                Column {
-                                    Text(
-                                        text = "128",
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text("Items Shared", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. Search Bar
+            // 2. Search Bar at the top of the item feed
             item {
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.searchQuery.value = it },
-                    placeholder = { Text("Search pressure washer, ladder, tent...", fontSize = 13.sp) },
+                    placeholder = { Text("Search by tool keyword or category (e.g. ladder, drill, garden)...", fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Search",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { viewModel.searchQuery.value = "" }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Clear")
+                            IconButton(
+                                onClick = { viewModel.searchQuery.value = "" },
+                                modifier = Modifier.testTag("clear_search_btn")
+                            ) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear search")
                             }
                         } else {
                             IconButton(
@@ -251,11 +160,194 @@ fun HomeScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
+                        .padding(horizontal = 16.dp, vertical = 2.dp)
                         .testTag("home_search_bar"),
                     shape = RoundedCornerShape(16.dp),
                     singleLine = true
                 )
+            }
+
+            // 3. Category Filter Chips at top of feed
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.testTag("category_filter_row")
+                ) {
+                    items(categories) { category ->
+                        val isSelected = selectedCategory == category
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    viewModel.selectedCategory.value = category
+                                }
+                                .testTag("category_chip_${category.lowercase().replace(" ", "_").replace("&", "and")}")
+                        ) {
+                            Text(
+                                text = category,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Active Filters Summary Pill (if user filtered by query or category)
+            if (searchQuery.isNotEmpty() || selectedCategory != "All" || selectedAvailability != "All") {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FilterList,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = buildString {
+                                    append("Filtering: ")
+                                    if (selectedCategory != "All") append(selectedCategory)
+                                    if (searchQuery.isNotEmpty()) {
+                                        if (selectedCategory != "All") append(" • ")
+                                        append("\"$searchQuery\"")
+                                    }
+                                    if (selectedAvailability != "All") {
+                                        append(" • $selectedAvailability")
+                                    }
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        Text(
+                            text = "Reset",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier
+                                .clickable {
+                                    viewModel.searchQuery.value = ""
+                                    viewModel.selectedCategory.value = "All"
+                                    viewModel.selectedAvailability.value = "All"
+                                }
+                                .testTag("reset_filters_pill_btn")
+                        )
+                    }
+                }
+            }
+
+            // 4. Community Waste Diversion Banner
+            if (searchQuery.isEmpty()) {
+                item {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.primaryContainer,
+                                            MaterialTheme.colorScheme.surfaceVariant
+                                        )
+                                    )
+                                )
+                                .padding(16.dp)
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Eco,
+                                            contentDescription = null,
+                                            tint = EcoGreenPrimary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = "Neighborhood Waste Impact",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EcoGreenDark
+                                        )
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    ) {
+                                        Text(
+                                            text = userProfile.neighborhood.take(16),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "342.8 kg",
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EcoGreenDark
+                                        )
+                                        Text("Waste Prevented", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Column {
+                                        Text(
+                                            text = "$4,820",
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EcoAmber
+                                        )
+                                        Text("Community Saved", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    Column {
+                                        Text(
+                                            text = "128",
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text("Items Shared", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Quick Tool QR Tag Scan Banner & Add Item Banner
@@ -574,35 +666,7 @@ fun HomeScreen(
                 }
             }
 
-            // 6. Category Filter Chips
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.testTag("category_filter_row")
-                ) {
-                    items(categories) { category ->
-                        val isSelected = selectedCategory == category
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.clickable {
-                                viewModel.selectedCategory.value = category
-                            }
-                        ) {
-                            Text(
-                                text = category,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // 6. Availability Quick Filters (All, Available, Borrowed)
+            // Availability Quick Filters (All, Available, Reserved, Borrowed)
             item {
                 Row(
                     modifier = Modifier
@@ -618,22 +682,24 @@ fun HomeScreen(
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("All", "Available", "Borrowed").forEach { opt ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("All", "Available", "Reserved", "Borrowed").forEach { opt ->
                             val isSelected = selectedAvailability == opt
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
                                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                modifier = Modifier.clickable {
-                                    viewModel.selectedAvailability.value = opt
-                                }
+                                modifier = Modifier
+                                    .clickable {
+                                        viewModel.selectedAvailability.value = opt
+                                    }
+                                    .testTag("filter_avail_${opt.lowercase()}")
                             ) {
                                 Text(
                                     text = opt,
                                     fontSize = 11.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
                                 )
                             }
                         }
@@ -641,13 +707,13 @@ fun HomeScreen(
                 }
             }
 
-            // 7. Items List
+            // Items List
             if (filteredItems.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 40.dp),
+                            .padding(vertical = 36.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -666,10 +732,27 @@ fun HomeScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Try adjusting your search or category selection.",
+                                text = "Try adjusting your search keywords, category, or availability.",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    viewModel.searchQuery.value = ""
+                                    viewModel.selectedCategory.value = "All"
+                                    viewModel.selectedAvailability.value = "All"
+                                },
+                                modifier = Modifier.testTag("empty_state_reset_filters_btn")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Reset All Filters", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

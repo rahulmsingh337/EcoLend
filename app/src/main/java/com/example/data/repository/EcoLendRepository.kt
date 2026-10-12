@@ -154,6 +154,10 @@ class EcoLendRepository(
         dao.updateItemPhoto(itemId, photoUri)
     }
 
+    suspend fun updateMaxBorrowDuration(itemId: Long, durationDays: Int) {
+        dao.updateMaxBorrowDuration(itemId, durationDays)
+    }
+
     suspend fun addNewItem(item: LendItem) {
         dao.insertItem(item)
         val profile = dao.getUserProfileSync() ?: UserProfile()
@@ -295,6 +299,25 @@ class EcoLendRepository(
             tags = tags
         )
         dao.insertReview(review)
+
+        // Dynamically update the lender's item rating and review count
+        val currentItem = dao.getItemByIdSync(itemId)
+        if (currentItem != null) {
+            val oldCount = currentItem.ownerReviewsCount
+            val newCount = oldCount + 1
+            val updatedRating = if (oldCount > 0) {
+                ((currentItem.ownerRating * oldCount) + rating) / newCount
+            } else {
+                rating.toFloat()
+            }
+            val roundedRating = Math.round(updatedRating * 10.0) / 10.0
+            dao.updateItem(
+                currentItem.copy(
+                    ownerRating = roundedRating.toFloat(),
+                    ownerReviewsCount = newCount
+                )
+            )
+        }
 
         val profile = dao.getUserProfileSync() ?: UserProfile()
         dao.updateUserProfile(profile.copy(karmaScore = profile.karmaScore + 25))
