@@ -7,11 +7,19 @@ import com.example.data.local.EcoLendDatabase
 import com.example.data.model.AppNotification
 import com.example.data.model.BorrowRequest
 import com.example.data.model.ChatMessage
+import com.example.data.model.BadgeCategory
+import com.example.data.model.BadgeMilestone
+import com.example.data.model.BadgeTier
+import com.example.data.model.KarmaBadge
+import com.example.data.model.KarmaBreakdown
 import com.example.data.model.LendItem
 import com.example.data.model.Review
 import com.example.data.model.UserProfile
 import com.example.data.model.WishlistEntry
+import com.example.data.model.AvailabilityAlert
 import com.example.data.repository.EcoLendRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +35,8 @@ enum class Screen {
     MESSAGES,
     GAMIFICATION,
     PROFILE,
-    ADD_ITEM
+    ADD_ITEM,
+    TRANSACTION_HISTORY
 }
 
 class EcoLendViewModel(application: Application) : AndroidViewModel(application) {
@@ -75,11 +84,48 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), UserProfile())
 
+    val isAuthenticated: StateFlow<Boolean> = userProfile
+        .map { it.isAuthenticated }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val authProvider: StateFlow<String> = userProfile
+        .map { it.authProvider }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "GUEST")
+
     val allMessages: StateFlow<List<ChatMessage>> = repository.getAllMessages()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allReviews: StateFlow<List<Review>> = repository.getAllReviews()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Community Karma & Progression State
+    val karmaBreakdown: StateFlow<KarmaBreakdown> = combine(
+        userProfile,
+        allRequests,
+        allReviews
+    ) { profile, requests, reviews ->
+        calculateKarmaBreakdown(profile, requests, reviews)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        calculateKarmaBreakdown(UserProfile(), emptyList(), emptyList())
+    )
+
+    val karmaBadges: StateFlow<List<KarmaBadge>> = combine(
+        userProfile,
+        allRequests,
+        allReviews,
+        allItems
+    ) { profile, requests, reviews, items ->
+        calculateKarmaBadges(profile, requests, reviews, items)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        calculateKarmaBadges(UserProfile(), emptyList(), emptyList(), emptyList())
+    )
+
+    private val _selectedBadgeForDetail = MutableStateFlow<KarmaBadge?>(null)
+    val selectedBadgeForDetail: StateFlow<KarmaBadge?> = _selectedBadgeForDetail.asStateFlow()
 
     // Filtered items based on search, category, distance, availability
     val filteredItems: StateFlow<List<LendItem>> = combine(
@@ -185,6 +231,166 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
         _itemForWishlistNote.value = null
     }
 
+    // --- Availability Alerts System ---
+    val availabilityAlerts: StateFlow<List<AvailabilityAlert>> = repository.getAllAvailabilityAlerts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _showCreateAlertDialog = MutableStateFlow(false)
+    val showCreateAlertDialog: StateFlow<Boolean> = _showCreateAlertDialog.asStateFlow()
+
+    private val _createAlertInitialKeyword = MutableStateFlow("")
+    val createAlertInitialKeyword: StateFlow<String> = _createAlertInitialKeyword.asStateFlow()
+
+    private val _createAlertInitialCategory = MutableStateFlow("All")
+    val createAlertInitialCategory: StateFlow<String> = _createAlertInitialCategory.asStateFlow()
+
+    fun openCreateAlertDialog(initialKeyword: String = "", initialCategory: String = "All") {
+        if (userProfile.value.isAuthenticated) {
+            _createAlertInitialKeyword.value = initialKeyword
+            _createAlertInitialCategory.value = initialCategory
+            _showCreateAlertDialog.value = true
+        } else {
+            executeGatedAction("Sign in to save and manage neighborhood availability alerts") {
+                _createAlertInitialKeyword.value = initialKeyword
+                _createAlertInitialCategory.value = initialCategory
+                _showCreateAlertDialog.value = true
+            }
+        }
+    }
+
+    fun closeCreateAlertDialog() {
+        _showCreateAlertDialog.value = false
+    }
+
+    fun saveAvailabilityAlert(keywords: String, category: String, maxDistanceMiles: Double) {
+        viewModelScope.launch {
+            repository.saveAvailabilityAlert(keywords, category, maxDistanceMiles)
+            _showCreateAlertDialog.value = false
+        }
+    }
+
+    fun toggleAlertActive(alertId: Long, isActive: Boolean) {
+        viewModelScope.launch {
+            repository.toggleAlertActive(alertId, isActive)
+        }
+    }
+
+    fun deleteAvailabilityAlert(alertId: Long) {
+        viewModelScope.launch {
+            repository.deleteAvailabilityAlert(alertId)
+        }
+    }
+
+    fun testTriggerAlert(alert: AvailabilityAlert) {
+        viewModelScope.launch {
+            repository.testTriggerAlert(alert)
+        }
+    }
+
+    // --- Auth Gate & Management State ---
+    private val _showAuthDialog = MutableStateFlow(false)
+    val showAuthDialog: StateFlow<Boolean> = _showAuthDialog.asStateFlow()
+
+    private val _authPromptMessage = MutableStateFlow("Sign in to access community borrowing & lending")
+    val authPromptMessage: StateFlow<String> = _authPromptMessage.asStateFlow()
+
+    private val _showAccountDetailsDialog = MutableStateFlow(false)
+    val showAccountDetailsDialog: StateFlow<Boolean> = _showAccountDetailsDialog.asStateFlow()
+
+    private var pendingGatedAction: (() -> Unit)? = null
+
+    val pendingOtpCode: Flow<String?> = repository.pendingOtpCode
+
+    fun openAuthDialog(prompt: String = "Sign in to access community borrowing & lending") {
+        _authPromptMessage.value = prompt
+        _showAuthDialog.value = true
+    }
+
+    fun closeAuthDialog() {
+        _showAuthDialog.value = false
+        pendingGatedAction = null
+    }
+
+    fun executeGatedAction(prompt: String, action: () -> Unit) {
+        if (userProfile.value.isAuthenticated) {
+            action()
+        } else {
+            pendingGatedAction = action
+            _authPromptMessage.value = prompt
+            _showAuthDialog.value = true
+        }
+    }
+
+    fun openAddListing() {
+        executeGatedAction("Sign in to list equipment in your neighborhood library") {
+            navigateTo(Screen.ADD_ITEM)
+        }
+    }
+
+    fun openAccountDetailsDialog() {
+        _showAccountDetailsDialog.value = true
+    }
+
+    fun closeAccountDetailsDialog() {
+        _showAccountDetailsDialog.value = false
+    }
+
+    fun sendMobileOtp(phoneNumber: String, onCodeSent: (String) -> Unit = {}) {
+        viewModelScope.launch {
+            val code = repository.sendMobileOtp(phoneNumber)
+            onCodeSent(code)
+        }
+    }
+
+    fun verifyMobileOtp(phoneNumber: String, code: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.verifyMobileOtp(phoneNumber, code)
+            if (result.isSuccess) {
+                _showAuthDialog.value = false
+                val action = pendingGatedAction
+                pendingGatedAction = null
+                action?.invoke()
+                onResult(true, "Phone verified successfully!")
+            } else {
+                onResult(false, result.exceptionOrNull()?.message ?: "Verification failed")
+            }
+        }
+    }
+
+    fun signInWithGoogle(idToken: String, displayName: String?, email: String?, photoUrl: String?, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val result = repository.signInWithGoogleCredential(idToken, displayName, email, photoUrl)
+            if (result.isSuccess) {
+                _showAuthDialog.value = false
+                val action = pendingGatedAction
+                pendingGatedAction = null
+                action?.invoke()
+                onResult(true, "Signed in successfully!")
+            } else {
+                onResult(false, result.exceptionOrNull()?.message ?: "Sign-in failed")
+            }
+        }
+    }
+
+    fun signInWithDevGoogle(accountName: String, accountEmail: String) {
+        viewModelScope.launch {
+            val result = repository.signInWithSimulatedGoogle(accountName, accountEmail)
+            if (result.isSuccess) {
+                _showAuthDialog.value = false
+                val action = pendingGatedAction
+                pendingGatedAction = null
+                action?.invoke()
+            }
+        }
+    }
+
+    fun signOut() {
+        viewModelScope.launch {
+            repository.signOutUser()
+            _showAccountDetailsDialog.value = false
+        }
+    }
+
     // Navigation methods
     fun navigateTo(screen: Screen) {
         _currentScreen.value = screen
@@ -199,7 +405,13 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun startBorrowFlow(item: LendItem) {
-        _itemForBorrowPayment.value = item
+        if (userProfile.value.isAuthenticated) {
+            _itemForBorrowPayment.value = item
+        } else {
+            executeGatedAction("Sign in to complete your borrow request & authorize deposit hold") {
+                _itemForBorrowPayment.value = item
+            }
+        }
     }
 
     fun closeBorrowFlow() {
@@ -231,8 +443,15 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun openChatConversation(conversationId: String) {
-        _activeChatConversationId.value = conversationId
-        _currentScreen.value = Screen.MESSAGES
+        if (userProfile.value.isAuthenticated) {
+            _activeChatConversationId.value = conversationId
+            _currentScreen.value = Screen.MESSAGES
+        } else {
+            executeGatedAction("Sign in to message the tool owner") {
+                _activeChatConversationId.value = conversationId
+                _currentScreen.value = Screen.MESSAGES
+            }
+        }
     }
 
     fun toggleSupportChat(show: Boolean) {
@@ -333,6 +552,18 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
             _scanFeedbackMessage.value = "Background worker check initiated: Return dates analyzed!"
         } catch (e: Exception) {
             _scanFeedbackMessage.value = "Worker execution failed: ${e.message}"
+        }
+    }
+
+    fun toggleLoanReminders(enabled: Boolean) {
+        viewModelScope.launch {
+            repository.toggleLoanReminders(enabled)
+        }
+    }
+
+    fun simulate24HourLoanReminder() {
+        viewModelScope.launch {
+            repository.simulate24HourLoanReminder()
         }
     }
 
@@ -542,4 +773,386 @@ class EcoLendViewModel(application: Application) : AndroidViewModel(application)
             }
         }
     }
+
+    // --- Karma Progression Actions ---
+
+    fun selectBadge(badge: KarmaBadge) {
+        _selectedBadgeForDetail.value = badge
+    }
+
+    fun closeBadgeDetail() {
+        _selectedBadgeForDetail.value = null
+    }
+
+    fun simulateKarmaBonus(points: Int = 50) {
+        viewModelScope.launch {
+            val profile = userProfile.value
+            val newScore = profile.karmaScore + points
+            repository.updateUserProfile(profile.copy(karmaScore = newScore))
+            _scanFeedbackMessage.value = "🎉 Earned +$points Karma points! Reputation increased to $newScore."
+            // Update currently inspected badge if modal is open
+            _selectedBadgeForDetail.value?.let { current ->
+                val updatedBadges = calculateKarmaBadges(
+                    profile.copy(karmaScore = newScore),
+                    allRequests.value,
+                    allReviews.value,
+                    allItems.value
+                )
+                _selectedBadgeForDetail.value = updatedBadges.firstOrNull { it.id == current.id }
+            }
+        }
+    }
+
+    // --- Private Calculation Helpers ---
+
+    private fun calculateKarmaBreakdown(
+        profile: UserProfile,
+        requests: List<BorrowRequest>,
+        reviews: List<Review>
+    ): KarmaBreakdown {
+        val total = profile.karmaScore
+        val completedReturns = requests.count { it.status == "RETURNED" }
+        // Baseline 5 completed returns + dynamic returned requests
+        val totalReturnsCount = 5 + completedReturns
+        val returnPoints = totalReturnsCount * 50
+
+        // Baseline 4 positive reviews + dynamic reviews with rating >= 4
+        val positiveReviews = reviews.count { it.rating >= 4 }
+        val totalReviewsCount = 4 + positiveReviews
+        val feedbackPoints = totalReviewsCount * 25
+
+        // Remainder represents community trust bonus (porch pickup safety, verification)
+        val trustBonus = maxOf(20, total - returnPoints - feedbackPoints)
+
+        // Tiers for total score
+        val tier = when {
+            total >= 600 -> BadgeTier.GOLD
+            total >= 300 -> BadgeTier.SILVER
+            total >= 100 -> BadgeTier.BRONZE
+            else -> BadgeTier.NONE
+        }
+
+        val rankTitle = when {
+            total >= 1000 -> "Platinum Steward"
+            total >= 600 -> "Gold Guardian"
+            total >= 300 -> "Silver Steward"
+            total >= 100 -> "Bronze Neighbor"
+            else -> "Community Starter"
+        }
+
+        val nextRankTitle = when {
+            total >= 1000 -> "Diamond Ambassador"
+            total >= 600 -> "Platinum Steward"
+            total >= 300 -> "Gold Guardian"
+            total >= 100 -> "Silver Steward"
+            else -> "Bronze Neighbor"
+        }
+
+        val (floor, ceiling) = when {
+            total >= 1000 -> Pair(1000, 1500)
+            total >= 600 -> Pair(600, 1000)
+            total >= 300 -> Pair(300, 600)
+            total >= 100 -> Pair(100, 300)
+            else -> Pair(0, 100)
+        }
+
+        val pointsToNext = maxOf(0, ceiling - total)
+        val progress = if (ceiling > floor) {
+            ((total - floor).toFloat() / (ceiling - floor).toFloat()).coerceIn(0f, 1f)
+        } else 1f
+
+        val verifiedFlair = when (tier) {
+            BadgeTier.GOLD -> "Gold Guardian • Verified Community Pillar"
+            BadgeTier.SILVER -> "Silver Steward • Verified Community Lender"
+            BadgeTier.BRONZE -> "Bronze Neighbor • Trusted Member"
+            BadgeTier.NONE -> "Community Neighbor"
+        }
+
+        return KarmaBreakdown(
+            totalScore = total,
+            returnPoints = returnPoints,
+            feedbackPoints = feedbackPoints,
+            trustBonusPoints = trustBonus,
+            currentRankTitle = rankTitle,
+            currentTier = tier,
+            nextRankTitle = nextRankTitle,
+            nextRankThreshold = ceiling,
+            currentTierFloor = floor,
+            pointsToNextRank = pointsToNext,
+            progressToNextRank = progress,
+            successfulReturnsCount = totalReturnsCount,
+            positiveReviewsCount = totalReviewsCount,
+            verifiedTrustFlair = verifiedFlair
+        )
+    }
+
+    private fun calculateKarmaBadges(
+        profile: UserProfile,
+        requests: List<BorrowRequest>,
+        reviews: List<Review>,
+        items: List<LendItem>
+    ): List<KarmaBadge> {
+        val totalKarma = profile.karmaScore
+        val completedReturns = 5 + requests.count { it.status == "RETURNED" }
+        val userItemsCount = maxOf(items.count { it.ownerName == profile.name }, 5)
+        val wasteKg = profile.wasteSavedKg.toInt()
+
+        // 1. Community Hero (Reputation Track)
+        val heroMilestones = listOf(
+            BadgeMilestone(BadgeTier.BRONZE, 200, "Reach 200 Karma Points", "Community Welcomer flair on profile"),
+            BadgeMilestone(BadgeTier.SILVER, 400, "Reach 400 Karma Points", "Verified Community Trust Shield"),
+            BadgeMilestone(BadgeTier.GOLD, 750, "Reach 750 Karma Points", "Ambassador badge & priority equipment reserves")
+        )
+        val heroTier = when {
+            totalKarma >= 750 -> BadgeTier.GOLD
+            totalKarma >= 400 -> BadgeTier.SILVER
+            totalKarma >= 200 -> BadgeTier.BRONZE
+            else -> BadgeTier.NONE
+        }
+        val heroNextTier = when (heroTier) {
+            BadgeTier.NONE -> BadgeTier.BRONZE
+            BadgeTier.BRONZE -> BadgeTier.SILVER
+            BadgeTier.SILVER -> BadgeTier.GOLD
+            BadgeTier.GOLD -> null
+        }
+        val heroNextThreshold = when (heroTier) {
+            BadgeTier.NONE -> 200
+            BadgeTier.BRONZE -> 400
+            BadgeTier.SILVER -> 750
+            BadgeTier.GOLD -> 750
+        }
+        val heroProgress = if (heroNextTier != null) {
+            (totalKarma.toFloat() / heroNextThreshold.toFloat()).coerceIn(0f, 1f)
+        } else 1f
+
+        val communityHeroBadge = KarmaBadge(
+            id = "community_hero",
+            title = "Community Hero",
+            category = BadgeCategory.COMMUNITY,
+            iconEmoji = "🏆",
+            description = "Earned through exemplary neighborly conduct, verified on-time returns, and glowing community reviews.",
+            currentTier = heroTier,
+            currentValue = totalKarma,
+            unit = "pts",
+            nextTier = heroNextTier,
+            currentTierThreshold = if (heroTier == BadgeTier.SILVER) 400 else if (heroTier == BadgeTier.BRONZE) 200 else 0,
+            nextTierThreshold = heroNextThreshold,
+            progressFraction = heroProgress,
+            activePerk = when (heroTier) {
+                BadgeTier.GOLD -> "Ambassador status & zero-deposit borrowing privileges"
+                BadgeTier.SILVER -> "Verified Community Trust Shield displayed on listings"
+                BadgeTier.BRONZE -> "Community Welcomer flair on profile"
+                BadgeTier.NONE -> "Unlock at 200 Karma points"
+            },
+            nextPerk = when (heroTier) {
+                BadgeTier.NONE -> "Unlock Community Welcomer flair at 200 pts"
+                BadgeTier.BRONZE -> "Unlock Verified Trust Shield at 400 pts"
+                BadgeTier.SILVER -> "Unlock Ambassador status at 750 pts"
+                BadgeTier.GOLD -> null
+            },
+            milestones = heroMilestones,
+            motivationalTip = "Keep returning borrowed equipment on time (+50 pts) and leaving reviews (+25 pts) to advance to Gold!"
+        )
+
+        // 2. Top Lender (Lending Track)
+        val lenderMilestones = listOf(
+            BadgeMilestone(BadgeTier.BRONZE, 2, "Share 2 equipment listings with neighbors", "Lender Spotlight in search results"),
+            BadgeMilestone(BadgeTier.SILVER, 6, "Share 6 equipment listings with neighbors", "Verified Top Lender badge on item cards"),
+            BadgeMilestone(BadgeTier.GOLD, 12, "Share 12 equipment listings with neighbors", "Zero-deposit guarantee coverage eligible")
+        )
+        val lenderTier = when {
+            userItemsCount >= 12 -> BadgeTier.GOLD
+            userItemsCount >= 6 -> BadgeTier.SILVER
+            userItemsCount >= 2 -> BadgeTier.BRONZE
+            else -> BadgeTier.NONE
+        }
+        val lenderNextTier = when (lenderTier) {
+            BadgeTier.NONE -> BadgeTier.BRONZE
+            BadgeTier.BRONZE -> BadgeTier.SILVER
+            BadgeTier.SILVER -> BadgeTier.GOLD
+            BadgeTier.GOLD -> null
+        }
+        val lenderNextThreshold = when (lenderTier) {
+            BadgeTier.NONE -> 2
+            BadgeTier.BRONZE -> 6
+            BadgeTier.SILVER -> 12
+            BadgeTier.GOLD -> 12
+        }
+        val lenderProgress = if (lenderNextTier != null) {
+            (userItemsCount.toFloat() / lenderNextThreshold.toFloat()).coerceIn(0f, 1f)
+        } else 1f
+
+        val topLenderBadge = KarmaBadge(
+            id = "top_lender",
+            title = "Top Lender",
+            category = BadgeCategory.LENDING,
+            iconEmoji = "🛠️",
+            description = "Lending high-demand tools and equipment to neighbors with pristine upkeep and zero disputes.",
+            currentTier = lenderTier,
+            currentValue = userItemsCount,
+            unit = "tools shared",
+            nextTier = lenderNextTier,
+            currentTierThreshold = if (lenderTier == BadgeTier.BRONZE) 2 else 0,
+            nextTierThreshold = lenderNextThreshold,
+            progressFraction = lenderProgress,
+            activePerk = when (lenderTier) {
+                BadgeTier.GOLD -> "Zero-deposit guarantee & VIP lender badge"
+                BadgeTier.SILVER -> "Verified Top Lender badge on all listings"
+                BadgeTier.BRONZE -> "Lender Spotlight in search results"
+                BadgeTier.NONE -> "Unlock at 2 tools shared"
+            },
+            nextPerk = when (lenderTier) {
+                BadgeTier.NONE -> "Unlock Lender Spotlight at 2 tools shared"
+                BadgeTier.BRONZE -> "Unlock Verified Top Lender badge at 6 tools shared"
+                BadgeTier.SILVER -> "Unlock Zero-deposit guarantee at 12 tools shared"
+                BadgeTier.GOLD -> null
+            },
+            milestones = lenderMilestones,
+            motivationalTip = "Add 1 more tool or kitchen device to your community catalog to reach Silver Top Lender!"
+        )
+
+        // 3. Reliable Borrower (Borrowing Track)
+        val borrowerMilestones = listOf(
+            BadgeMilestone(BadgeTier.BRONZE, 2, "Complete 2 on-time returns", "Fast-track loan approval from neighbors"),
+            BadgeMilestone(BadgeTier.SILVER, 6, "Complete 6 on-time returns", "Trusted Borrower flair on loan requests"),
+            BadgeMilestone(BadgeTier.GOLD, 12, "Complete 12 on-time returns", "VIP Borrower status with 50% reduced deposit holds")
+        )
+        val borrowerTier = when {
+            completedReturns >= 12 -> BadgeTier.GOLD
+            completedReturns >= 6 -> BadgeTier.SILVER
+            completedReturns >= 2 -> BadgeTier.BRONZE
+            else -> BadgeTier.NONE
+        }
+        val borrowerNextTier = when (borrowerTier) {
+            BadgeTier.NONE -> BadgeTier.BRONZE
+            BadgeTier.BRONZE -> BadgeTier.SILVER
+            BadgeTier.SILVER -> BadgeTier.GOLD
+            BadgeTier.GOLD -> null
+        }
+        val borrowerNextThreshold = when (borrowerTier) {
+            BadgeTier.NONE -> 2
+            BadgeTier.BRONZE -> 6
+            BadgeTier.SILVER -> 12
+            BadgeTier.GOLD -> 12
+        }
+        val borrowerProgress = if (borrowerNextTier != null) {
+            (completedReturns.toFloat() / borrowerNextThreshold.toFloat()).coerceIn(0f, 1f)
+        } else 1f
+
+        val reliableBorrowerBadge = KarmaBadge(
+            id = "reliable_borrower",
+            title = "Reliable Borrower",
+            category = BadgeCategory.BORROWING,
+            iconEmoji = "🤝",
+            description = "Consistently returning borrowed gear in clean, working condition within the reserved loan window.",
+            currentTier = borrowerTier,
+            currentValue = completedReturns,
+            unit = "verified returns",
+            nextTier = borrowerNextTier,
+            currentTierThreshold = if (borrowerTier == BadgeTier.SILVER) 6 else 2,
+            nextTierThreshold = borrowerNextThreshold,
+            progressFraction = borrowerProgress,
+            activePerk = when (borrowerTier) {
+                BadgeTier.GOLD -> "VIP Borrower status: 50% reduced deposit holds"
+                BadgeTier.SILVER -> "Trusted Borrower flair shown on all loan requests"
+                BadgeTier.BRONZE -> "Fast-track loan approval from neighbors"
+                BadgeTier.NONE -> "Unlock at 2 on-time returns"
+            },
+            nextPerk = when (borrowerTier) {
+                BadgeTier.NONE -> "Unlock Fast-track loan approval at 2 returns"
+                BadgeTier.BRONZE -> "Unlock Trusted Borrower flair at 6 returns"
+                BadgeTier.SILVER -> "Unlock VIP Borrower status at 12 returns"
+                BadgeTier.GOLD -> null
+            },
+            milestones = borrowerMilestones,
+            motivationalTip = "Always check in on time and snap a return photo to build trust with lenders!"
+        )
+
+        // 4. Zero Waste Champion (Eco Impact Track)
+        val ecoMilestones = listOf(
+            BadgeMilestone(BadgeTier.BRONZE, 15, "Divert 15 kg of manufacturing waste", "Eco Seedling profile badge"),
+            BadgeMilestone(BadgeTier.SILVER, 40, "Divert 40 kg of manufacturing waste", "District Eco-Champion profile aura"),
+            BadgeMilestone(BadgeTier.GOLD, 80, "Divert 80 kg of manufacturing waste", "Community Hall of Fame recognition")
+        )
+        val ecoTier = when {
+            wasteKg >= 80 -> BadgeTier.GOLD
+            wasteKg >= 40 -> BadgeTier.SILVER
+            wasteKg >= 15 -> BadgeTier.BRONZE
+            else -> BadgeTier.NONE
+        }
+        val ecoNextTier = when (ecoTier) {
+            BadgeTier.NONE -> BadgeTier.BRONZE
+            BadgeTier.BRONZE -> BadgeTier.SILVER
+            BadgeTier.SILVER -> BadgeTier.GOLD
+            BadgeTier.GOLD -> null
+        }
+        val ecoNextThreshold = when (ecoTier) {
+            BadgeTier.NONE -> 15
+            BadgeTier.BRONZE -> 40
+            BadgeTier.SILVER -> 80
+            BadgeTier.GOLD -> 80
+        }
+        val ecoProgress = if (ecoNextTier != null) {
+            (wasteKg.toFloat() / ecoNextThreshold.toFloat()).coerceIn(0f, 1f)
+        } else 1f
+
+        val zeroWasteBadge = KarmaBadge(
+            id = "zero_waste_champion",
+            title = "Zero Waste Champion",
+            category = BadgeCategory.ECO_IMPACT,
+            iconEmoji = "🌱",
+            description = "Preventing single-use tool purchases, carbon emissions, and landfill waste through collective neighborhood reuse.",
+            currentTier = ecoTier,
+            currentValue = wasteKg,
+            unit = "kg waste saved",
+            nextTier = ecoNextTier,
+            currentTierThreshold = if (ecoTier == BadgeTier.SILVER) 40 else 15,
+            nextTierThreshold = ecoNextThreshold,
+            progressFraction = ecoProgress,
+            activePerk = when (ecoTier) {
+                BadgeTier.GOLD -> "Community Hall of Fame recognition & golden tree flair"
+                BadgeTier.SILVER -> "District Eco-Champion profile aura"
+                BadgeTier.BRONZE -> "Eco Seedling profile badge"
+                BadgeTier.NONE -> "Unlock at 15 kg saved"
+            },
+            nextPerk = when (ecoTier) {
+                BadgeTier.NONE -> "Unlock Eco Seedling at 15 kg saved"
+                BadgeTier.BRONZE -> "Unlock District Eco-Champion aura at 40 kg saved"
+                BadgeTier.SILVER -> "Unlock Hall of Fame recognition at 80 kg saved"
+                BadgeTier.GOLD -> null
+            },
+            milestones = ecoMilestones,
+            motivationalTip = "Sharing heavy tools like pressure washers and mowers diverts the most manufacturing waste!"
+        )
+
+        // 5. Verified Neighbor (Authentication & Trust Track)
+        val isAuth = profile.isAuthenticated
+        val authMilestones = listOf(
+            BadgeMilestone(BadgeTier.BRONZE, 1, "Browse community equipment as guest", "Guest explorer pass"),
+            BadgeMilestone(BadgeTier.SILVER, 2, "Link Google or verify mobile phone", "Verified Trust shield on profile"),
+            BadgeMilestone(BadgeTier.GOLD, 3, "Complete 2-way authenticated exchange", "Gold Verified Neighbor badge")
+        )
+        val authTier = if (isAuth) BadgeTier.GOLD else BadgeTier.NONE
+        val verifiedNeighborBadge = KarmaBadge(
+            id = "verified_neighbor",
+            title = "Verified Neighbor",
+            category = BadgeCategory.COMMUNITY,
+            iconEmoji = "🛡️",
+            description = "Verified community identity linked via Google Sign-In or Mobile Phone OTP.",
+            currentTier = authTier,
+            currentValue = if (isAuth) 1 else 0,
+            unit = "verified account",
+            nextTier = if (isAuth) null else BadgeTier.GOLD,
+            currentTierThreshold = if (isAuth) 1 else 0,
+            nextTierThreshold = 1,
+            progressFraction = if (isAuth) 1f else 0f,
+            activePerk = if (isAuth) "Verified Identity flair on all equipment listings & instant borrow clearance" else "Sign in to unlock verified custody & lend tools",
+            nextPerk = if (isAuth) null else "Sign in with Google or Mobile OTP for verified status",
+            milestones = authMilestones,
+            motivationalTip = "Verified accounts enjoy zero friction pickup approvals from community tool owners!"
+        )
+
+        return listOf(communityHeroBadge, topLenderBadge, reliableBorrowerBadge, zeroWasteBadge, verifiedNeighborBadge)
+    }
 }
+

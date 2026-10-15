@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.RateReview
@@ -67,10 +68,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.BadgeTier
 import com.example.data.model.LendItem
 import com.example.ui.EcoLendViewModel
 import com.example.ui.components.AvailabilityChip
 import com.example.ui.components.RatingDisplay
+import com.example.ui.components.VerifiedTrustBadge
 import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.EcoAmber
 import com.example.ui.theme.EcoGreenDark
@@ -151,17 +154,41 @@ fun ItemDetailScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Chat", fontSize = 13.sp)
                     }
-                    Button(
-                        onClick = { viewModel.startBorrowFlow(item) },
-                        enabled = item.availability == "AVAILABLE_NOW",
-                        modifier = Modifier.weight(2f).testTag("detail_borrow_btn"),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Text(
-                            text = if (item.availability == "AVAILABLE_NOW") "Borrow (Hold $${item.depositAmount.toInt()})" else "Currently In Use",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
+                    if (item.availability == "AVAILABLE_NOW") {
+                        Button(
+                            onClick = { viewModel.startBorrowFlow(item) },
+                            modifier = Modifier.weight(2f).testTag("detail_borrow_btn"),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Text(
+                                text = "Borrow (Hold $${item.depositAmount.toInt()})",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    } else {
+                        Button(
+                            onClick = {
+                                viewModel.openCreateAlertDialog(
+                                    initialKeyword = item.title,
+                                    initialCategory = item.category
+                                )
+                            },
+                            modifier = Modifier.weight(2f).testTag("detail_notify_when_available_btn"),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Notify When Available 🔔",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                 }
             }
@@ -647,19 +674,15 @@ fun ItemDetailScreen(
                         Text(item.ownerName, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         RatingDisplay(rating = item.ownerRating, reviewCount = item.ownerReviewsCount)
                     }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFE8F5E9)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Shield, contentDescription = null, tint = EcoGreenDark, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Text("Verified", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = EcoGreenDark)
-                        }
+                    val trustTier = when {
+                        item.ownerRating >= 4.95f -> BadgeTier.GOLD
+                        item.ownerRating >= 4.85f -> BadgeTier.SILVER
+                        else -> BadgeTier.BRONZE
                     }
+                    VerifiedTrustBadge(
+                        tier = trustTier,
+                        label = "Community Lender"
+                    )
                 }
             }
 

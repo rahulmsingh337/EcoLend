@@ -9,6 +9,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -65,7 +66,10 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.EcoLendViewModel
 import com.example.ui.Screen
 import com.example.ui.components.AddListingDialog
+import com.example.ui.components.AuthenticationDialog
+import com.example.ui.components.AccountDetailsDialog
 import com.example.ui.components.CameraPhotoCaptureDialog
+import com.example.ui.components.CreateAvailabilityAlertDialog
 import com.example.ui.components.NotificationCenterDialog
 import com.example.ui.components.OnboardingTutorialDialog
 import com.example.ui.components.PaymentSheetDialog
@@ -83,6 +87,7 @@ import com.example.ui.screens.HomeScreen
 import com.example.ui.screens.ItemDetailScreen
 import com.example.ui.screens.MessagesScreen
 import com.example.ui.screens.ProfilePrivacyScreen
+import com.example.ui.screens.TransactionHistoryScreen
 import com.example.ui.theme.EcoAmber
 import com.example.ui.theme.EcoGreenDark
 import com.example.ui.theme.EcoGreenPrimary
@@ -136,6 +141,13 @@ fun EcoLendApp(viewModel: EcoLendViewModel) {
     val scanFeedbackMessage by viewModel.scanFeedbackMessage.collectAsState()
     val allItems by viewModel.allItems.collectAsState()
     val userProfile by viewModel.userProfile.collectAsState()
+    val showCreateAlert by viewModel.showCreateAlertDialog.collectAsState()
+    val initialAlertKeyword by viewModel.createAlertInitialKeyword.collectAsState()
+    val initialAlertCategory by viewModel.createAlertInitialCategory.collectAsState()
+    val isAuthenticated by viewModel.isAuthenticated.collectAsState()
+    val showAuthDialog by viewModel.showAuthDialog.collectAsState()
+    val authPromptMessage by viewModel.authPromptMessage.collectAsState()
+    val showAccountDetails by viewModel.showAccountDetailsDialog.collectAsState()
 
     // Handle back button when on sub-screens or in detail view
     BackHandler(enabled = selectedItemForDetail != null || currentScreen != Screen.HOME) {
@@ -253,6 +265,57 @@ fun EcoLendApp(viewModel: EcoLendViewModel) {
                                     contentDescription = "Notifications",
                                     modifier = Modifier.size(20.dp)
                                 )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Account / Sign In Status Button
+                        if (isAuthenticated) {
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .clickable { viewModel.openAccountDetailsDialog() }
+                                    .testTag("top_bar_account_btn")
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = userProfile.name.split(" ").mapNotNull { it.firstOrNull()?.toString() }.take(2).joinToString(""),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                        } else {
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                                modifier = Modifier
+                                    .clickable { viewModel.openAuthDialog("Sign in to access community borrowing & lending") }
+                                    .testTag("top_bar_sign_in_btn")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = "Sign In",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Sign In",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
 
@@ -384,6 +447,10 @@ fun EcoLendApp(viewModel: EcoLendViewModel) {
                                 viewModel = viewModel,
                                 onBack = { viewModel.navigateTo(Screen.HOME) }
                             )
+                            Screen.TRANSACTION_HISTORY -> TransactionHistoryScreen(
+                                viewModel = viewModel,
+                                onBack = { viewModel.navigateTo(Screen.PROFILE) }
+                            )
                         }
                     }
                 }
@@ -425,7 +492,9 @@ fun EcoLendApp(viewModel: EcoLendViewModel) {
             onDismiss = { viewModel.toggleNotificationTray(false) },
             onMarkAllRead = { viewModel.markAllNotificationsRead() },
             onMarkRead = { viewModel.markNotificationRead(it) },
-            onTriggerDueDatesCheck = { viewModel.triggerDueDatesCheck() }
+            onTriggerDueDatesCheck = { viewModel.triggerDueDatesCheck() },
+            onOpenHub = { viewModel.navigateTo(Screen.DASHBOARD) },
+            onOpenMessages = { viewModel.navigateTo(Screen.MESSAGES) }
         )
     }
 
@@ -492,6 +561,45 @@ fun EcoLendApp(viewModel: EcoLendViewModel) {
                 viewModel.removeFromWishlist(itemToWishlist)
                 viewModel.closeWishlistNoteDialog()
             }
+        )
+    }
+
+    if (showCreateAlert) {
+        CreateAvailabilityAlertDialog(
+            initialKeyword = initialAlertKeyword,
+            initialCategory = initialAlertCategory,
+            onDismiss = { viewModel.closeCreateAlertDialog() },
+            onSave = { keyword, category, radius ->
+                viewModel.saveAvailabilityAlert(keyword, category, radius)
+            }
+        )
+    }
+
+    if (showAuthDialog) {
+        AuthenticationDialog(
+            promptMessage = authPromptMessage,
+            onDismiss = { viewModel.closeAuthDialog() },
+            onGoogleSignIn = { idToken, displayName, email, photoUrl, onResult ->
+                viewModel.signInWithGoogle(idToken, displayName, email, photoUrl, onResult)
+            },
+            onSimulatedGoogleSignIn = { name, email ->
+                viewModel.signInWithDevGoogle(name, email)
+            },
+            onSendPhoneOtp = { phone, onCodeSent ->
+                viewModel.sendMobileOtp(phone, onCodeSent)
+            },
+            onVerifyPhoneOtp = { phone, code, onResult ->
+                viewModel.verifyMobileOtp(phone, code, onResult)
+            }
+        )
+    }
+
+    if (showAccountDetails) {
+        AccountDetailsDialog(
+            userProfile = userProfile,
+            onDismiss = { viewModel.closeAccountDetailsDialog() },
+            onSignOut = { viewModel.signOut() },
+            onOpenProfile = { viewModel.navigateTo(Screen.PROFILE) }
         )
     }
 }

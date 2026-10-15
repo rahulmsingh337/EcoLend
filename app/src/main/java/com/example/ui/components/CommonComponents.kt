@@ -437,6 +437,17 @@ fun ItemCard(
                         )
                     }
                 }
+
+                val trustTier = when {
+                    item.ownerRating >= 4.95f -> com.example.data.model.BadgeTier.GOLD
+                    item.ownerRating >= 4.85f -> com.example.data.model.BadgeTier.SILVER
+                    else -> com.example.data.model.BadgeTier.BRONZE
+                }
+                VerifiedTrustBadge(
+                    tier = trustTier,
+                    label = "Verified Lender",
+                    showIcon = true
+                )
             }
 
             Spacer(modifier = Modifier.height(10.dp))

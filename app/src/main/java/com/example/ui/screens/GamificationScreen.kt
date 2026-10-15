@@ -46,6 +46,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.EcoLendViewModel
+import com.example.ui.components.BadgeDetailDialog
+import com.example.ui.components.KarmaBadgeShowcase
 import com.example.ui.theme.EcoAmber
 import com.example.ui.theme.EcoGold
 import com.example.ui.theme.EcoGreenDark
@@ -74,6 +76,8 @@ fun GamificationScreen(
     modifier: Modifier = Modifier
 ) {
     val userProfile by viewModel.userProfile.collectAsState()
+    val karmaBadges by viewModel.karmaBadges.collectAsState()
+    val selectedBadgeForDetail by viewModel.selectedBadgeForDetail.collectAsState()
 
     val badges = listOf(
         CommunityBadge(
@@ -278,81 +282,12 @@ fun GamificationScreen(
             }
         }
 
-        // 3. Community Badges
+        // 3. Multi-tiered Community Badges Showcase
         item {
-            Text(
-                text = "Community Badges",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+            KarmaBadgeShowcase(
+                badges = karmaBadges,
+                onBadgeClick = { badge -> viewModel.selectBadge(badge) }
             )
-        }
-
-        items(badges) { badge ->
-            Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
-                shadowElevation = 1.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (badge.isUnlocked) MaterialTheme.colorScheme.primaryContainer
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = badge.iconName, fontSize = 20.sp)
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = badge.title,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            if (badge.isUnlocked) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFFE8F5E9)
-                                ) {
-                                    Text(
-                                        text = "UNLOCKED",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = EcoGreenDark,
-                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = badge.description,
-                            fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = 15.sp
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = badge.progress,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (badge.isUnlocked) EcoGreenPrimary else MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-            }
         }
 
         // 4. District Leaderboard
@@ -411,5 +346,13 @@ fun GamificationScreen(
                 }
             }
         }
+    }
+
+    selectedBadgeForDetail?.let { badge ->
+        BadgeDetailDialog(
+            badge = badge,
+            onDismiss = { viewModel.closeBadgeDetail() },
+            onSimulateBonus = { viewModel.simulateKarmaBonus(50) }
+        )
     }
 }

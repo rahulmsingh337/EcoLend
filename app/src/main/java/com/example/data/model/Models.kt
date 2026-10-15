@@ -116,7 +116,14 @@ data class UserProfile(
     val phoneVisibleToConfirmedOnly: Boolean = true,
     val darkModeSetting: String = "SYSTEM", // "LIGHT", "DARK", "SYSTEM"
     val largeTextMode: Boolean = false,
-    val hasCompletedOnboarding: Boolean = true
+    val hasCompletedOnboarding: Boolean = true,
+    val loanRemindersEnabled: Boolean = true,
+    val email: String = "",
+    val phoneNumber: String = "",
+    val authProvider: String = "GUEST", // "GOOGLE", "PHONE", "GUEST"
+    val isAuthenticated: Boolean = false,
+    val authUid: String = "",
+    val photoUrl: String = ""
 )
 
 @Entity(tableName = "wishlist_entries")
@@ -129,5 +136,18 @@ data class WishlistEntry(
     val targetDate: String = "",
     val notifyWhenAvailable: Boolean = true,
     val addedAtMillis: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "availability_alerts")
+data class AvailabilityAlert(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0,
+    val keywords: String,
+    val category: String = "All", // "All", "Power Tools", "Lawn & Garden", etc.
+    val maxDistanceMiles: Double = 5.0,
+    val isActive: Boolean = true,
+    val createdAtMillis: Long = System.currentTimeMillis(),
+    val lastTriggeredMillis: Long? = null,
+    val matchCount: Int = 0
 )
 

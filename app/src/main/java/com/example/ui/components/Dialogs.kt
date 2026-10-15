@@ -9,6 +9,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -476,13 +477,15 @@ fun NotificationCenterDialog(
     onDismiss: () -> Unit,
     onMarkAllRead: () -> Unit,
     onMarkRead: (Long) -> Unit,
-    onTriggerDueDatesCheck: (() -> Unit)? = null
+    onTriggerDueDatesCheck: (() -> Unit)? = null,
+    onOpenHub: (() -> Unit)? = null,
+    onOpenMessages: (() -> Unit)? = null
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(480.dp)
+                .height(500.dp)
                 .testTag("notification_center_dialog"),
             shape = RoundedCornerShape(24.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -563,37 +566,82 @@ fun NotificationCenterDialog(
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
                                 color = if (notif.isRead) MaterialTheme.colorScheme.surface
+                                else if (notif.type == "RETURN_REMINDER") MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
                                 else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clickable { onMarkRead(notif.id) }
                             ) {
-                                Row(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .clip(CircleShape)
-                                            .background(if (notif.isRead) Color.Transparent else MaterialTheme.colorScheme.primary)
-                                            .padding(top = 4.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = notif.title,
-                                            fontSize = 13.sp,
-                                            fontWeight = if (notif.isRead) FontWeight.SemiBold else FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Row(verticalAlignment = Alignment.Top) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(
+                                                    if (notif.isRead) Color.Transparent
+                                                    else if (notif.type == "RETURN_REMINDER") EcoAmber
+                                                    else MaterialTheme.colorScheme.primary
+                                                )
+                                                .padding(top = 4.dp)
                                         )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = notif.message,
-                                            fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            lineHeight = 15.sp
-                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = notif.title,
+                                                fontSize = 13.sp,
+                                                fontWeight = if (notif.isRead) FontWeight.SemiBold else FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Text(
+                                                text = notif.message,
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                lineHeight = 15.sp
+                                            )
+                                        }
+                                    }
+
+                                    // Quick actions for return reminders
+                                    if (notif.type == "RETURN_REMINDER") {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            if (onOpenHub != null) {
+                                                Button(
+                                                    onClick = {
+                                                        onMarkRead(notif.id)
+                                                        onDismiss()
+                                                        onOpenHub()
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                    modifier = Modifier
+                                                        .height(28.dp)
+                                                        .testTag("notif_direct_return_btn_${notif.id}")
+                                                ) {
+                                                    Text("Return Tool 🚀", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+
+                                            if (onOpenMessages != null) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        onMarkRead(notif.id)
+                                                        onDismiss()
+                                                        onOpenMessages()
+                                                    },
+                                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                    modifier = Modifier
+                                                        .height(28.dp)
+                                                        .testTag("notif_message_owner_btn_${notif.id}")
+                                                ) {
+                                                    Text("Message Owner 💬", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

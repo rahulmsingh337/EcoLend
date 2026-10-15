@@ -25,6 +25,11 @@ class ReturnDueNotificationWorker(
             val activeRequests = dao.getActiveRequestsSync()
             val now = System.currentTimeMillis()
 
+            val profile = dao.getUserProfileSync()
+            if (profile != null && !profile.loanRemindersEnabled) {
+                return Result.success()
+            }
+
             val notificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
 
@@ -34,8 +39,9 @@ class ReturnDueNotificationWorker(
                 when {
                     // Item is past due
                     diffMillis < 0 -> {
+                        val hoursPast = ((Math.abs(diffMillis) / (1000 * 3600)).coerceAtLeast(1)).toInt()
                         val title = "Attention: Borrow Past Due! ⚠️"
-                        val message = "'${request.itemTitle}' was due back to ${request.ownerName}. Please return promptly or message in chat to preserve community trust."
+                        val message = "'${request.itemTitle}' was due back to ${request.ownerName} $hoursPast hour(s) ago. Please coordinate porch return to release your $$${request.depositPaid.toInt()} deposit and restore community trust."
 
                         // Save in-app notification
                         dao.insertNotification(
@@ -65,8 +71,8 @@ class ReturnDueNotificationWorker(
                     // Item is due within the next 24 hours (approaching return date)
                     diffMillis in 0..(24 * 3600 * 1000L) -> {
                         val hoursRemaining = ((diffMillis / (1000 * 3600)).coerceAtLeast(1)).toInt()
-                        val title = "Return Due Soon ⏳"
-                        val message = "'${request.itemTitle}' is due back to ${request.ownerName} in ~$hoursRemaining hours. Coordinate porch return to earn +50 Eco Karma!"
+                        val title = "Return Due in $hoursRemaining Hours ⏳"
+                        val message = "'${request.itemTitle}' is due back to ${request.ownerName} in ~$hoursRemaining hours. Return on time to release your $$${request.depositPaid.toInt()} deposit hold and earn +50 Eco Karma!"
 
                         // Save in-app notification
                         dao.insertNotification(
@@ -86,7 +92,7 @@ class ReturnDueNotificationWorker(
                                 .setContentTitle(title)
                                 .setContentText(message)
                                 .setStyle(NotificationCompat.BigTextStyle().bigText(message))
-                                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                                .setPriority(NotificationCompat.PRIORITY_HIGH)
                                 .setAutoCancel(true)
                                 .build()
                             manager.notify((request.id + 5000L).toInt(), notification)

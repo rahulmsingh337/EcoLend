@@ -11,6 +11,7 @@ import com.example.data.model.LendItem
 import com.example.data.model.Review
 import com.example.data.model.UserProfile
 import com.example.data.model.WishlistEntry
+import com.example.data.model.AvailabilityAlert
 
 @Database(
     entities = [
@@ -20,9 +21,10 @@ import com.example.data.model.WishlistEntry
         Review::class,
         AppNotification::class,
         UserProfile::class,
-        WishlistEntry::class
+        WishlistEntry::class,
+        AvailabilityAlert::class
     ],
-    version = 6,
+    version = 9,
     exportSchema = false
 )
 abstract class EcoLendDatabase : RoomDatabase() {

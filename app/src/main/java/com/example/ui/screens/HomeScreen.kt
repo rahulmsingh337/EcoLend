@@ -58,6 +58,7 @@ import com.example.ui.EcoLendViewModel
 import com.example.ui.Screen
 import com.example.ui.components.AvailabilityChip
 import com.example.ui.components.ItemCard
+import com.example.ui.components.QuickAlertSearchBanner
 import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.EcoAmber
 import com.example.ui.theme.EcoGreenDark
@@ -362,7 +363,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
-                            .clickable { viewModel.navigateTo(Screen.ADD_ITEM) }
+                            .clickable { viewModel.openAddListing() }
                             .testTag("home_add_item_banner_btn"),
                         color = MaterialTheme.colorScheme.primaryContainer
                     ) {
@@ -710,49 +711,58 @@ fun HomeScreen(
             // Items List
             if (filteredItems.isEmpty()) {
                 item {
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 36.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 16.dp, vertical = 20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.Yard,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(48.dp)
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(
-                                text = "No items match your filter",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Try adjusting your search keywords, category, or availability.",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedButton(
-                                onClick = {
-                                    viewModel.searchQuery.value = ""
-                                    viewModel.selectedCategory.value = "All"
-                                    viewModel.selectedAvailability.value = "All"
-                                },
-                                modifier = Modifier.testTag("empty_state_reset_filters_btn")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Clear,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
+                        QuickAlertSearchBanner(
+                            searchQuery = searchQuery,
+                            selectedCategory = selectedCategory,
+                            onSetAlertClick = {
+                                viewModel.openCreateAlertDialog(
+                                    initialKeyword = searchQuery,
+                                    initialCategory = selectedCategory
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Reset All Filters", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Icon(
+                            imageVector = Icons.Default.Yard,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No items match your current filter",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Try adjusting your search keywords, category, or radius.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.searchQuery.value = ""
+                                viewModel.selectedCategory.value = "All"
+                                viewModel.selectedAvailability.value = "All"
+                            },
+                            modifier = Modifier.testTag("empty_state_reset_filters_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Reset All Filters", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -772,7 +782,7 @@ fun HomeScreen(
 
         // Floating Action Button to Add New Item to Community
         FloatingActionButton(
-            onClick = { viewModel.navigateTo(Screen.ADD_ITEM) },
+            onClick = { viewModel.openAddListing() },
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = Color.White,
             modifier = Modifier

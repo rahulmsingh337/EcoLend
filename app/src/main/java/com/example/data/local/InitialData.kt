@@ -340,4 +340,37 @@ object InitialData {
             isOfflineQueued = false
         )
     )
+
+    val sampleAvailabilityAlerts = listOf(
+        com.example.data.model.AvailabilityAlert(
+            id = 1,
+            keywords = "Pressure Washer",
+            category = "Power Tools",
+            maxDistanceMiles = 5.0,
+            isActive = true,
+            createdAtMillis = System.currentTimeMillis() - 86400000L,
+            lastTriggeredMillis = System.currentTimeMillis() - 3600000L,
+            matchCount = 1
+        ),
+        com.example.data.model.AvailabilityAlert(
+            id = 2,
+            keywords = "Camping Tent",
+            category = "Camping & Outdoors",
+            maxDistanceMiles = 8.0,
+            isActive = true,
+            createdAtMillis = System.currentTimeMillis() - (86400000L * 2),
+            lastTriggeredMillis = null,
+            matchCount = 0
+        ),
+        com.example.data.model.AvailabilityAlert(
+            id = 3,
+            keywords = "Rototiller",
+            category = "Lawn & Garden",
+            maxDistanceMiles = 4.0,
+            isActive = false,
+            createdAtMillis = System.currentTimeMillis() - (86400000L * 3),
+            lastTriggeredMillis = null,
+            matchCount = 0
+        )
+    )
 }

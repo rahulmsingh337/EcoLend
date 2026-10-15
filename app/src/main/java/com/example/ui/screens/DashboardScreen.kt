@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -75,6 +76,7 @@ import com.example.ui.EcoLendViewModel
 import com.example.ui.Screen
 import com.example.ui.components.AvailabilityChip
 import com.example.ui.components.ItemCard
+import com.example.ui.components.QuickAlertSearchBanner
 import com.example.ui.components.getCategoryIcon
 import com.example.ui.theme.EcoAmber
 import com.example.ui.theme.EcoGreenDark
@@ -275,7 +277,7 @@ fun DashboardScreen(
                             shape = RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.primaryContainer,
                             modifier = Modifier
-                                .clickable { viewModel.navigateTo(Screen.ADD_ITEM) }
+                                .clickable { viewModel.openAddListing() }
                                 .testTag("dashboard_add_item_btn")
                         ) {
                             Row(
@@ -395,12 +397,24 @@ fun DashboardScreen(
             0 -> {
                 // All Equipment Availability
                 if (filteredAllItems.isEmpty()) {
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
+                        QuickAlertSearchBanner(
+                            searchQuery = searchQuery,
+                            selectedCategory = selectedCategory,
+                            onSetAlertClick = {
+                                viewModel.openCreateAlertDialog(
+                                    initialKeyword = searchQuery,
+                                    initialCategory = selectedCategory
+                                )
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
                             text = "No equipment matches '$searchQuery'.\nTry searching for tools, garden, or camping gear.",
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -879,13 +893,91 @@ fun ActiveRequestCard(
     onReturnClick: () -> Unit,
     onChatClick: () -> Unit
 ) {
+    val now = remember { System.currentTimeMillis() }
+    val diffMillis = request.endDateMillis - now
+    val hoursRemaining = ((diffMillis / (1000 * 3600))).toInt()
+    val isDueWithin24h = diffMillis in 0..(24 * 3600 * 1000L)
+    val isOverdue = diffMillis < 0
+
+    val cardBorder = when {
+        isOverdue -> androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.error)
+        isDueWithin24h -> androidx.compose.foundation.BorderStroke(1.5.dp, EcoAmber)
+        else -> null
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth().testTag("active_request_card_${request.id}"),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        colors = CardDefaults.cardColors(
+            containerColor = when {
+                isOverdue -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                isDueWithin24h -> MaterialTheme.colorScheme.surface
+                else -> MaterialTheme.colorScheme.surface
+            }
+        ),
+        border = cardBorder,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isDueWithin24h || isOverdue) 4.dp else 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            // Urgent 24-hour or Overdue Warning Banner
+            if (isOverdue) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                        .testTag("request_overdue_banner_${request.id}")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "🚨 Past Due! Return promptly to release $${request.depositPaid.toInt()} deposit.",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            } else if (isDueWithin24h) {
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFFFF3E0),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                        .testTag("request_urgent_24h_banner_${request.id}")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.HourglassBottom,
+                            contentDescription = null,
+                            tint = Color(0xFFE65100),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "⏰ 24-Hour Reminder: Due soon! Return to earn +50 Eco Karma.",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFE65100)
+                        )
+                    }
+                }
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -921,7 +1013,11 @@ fun ActiveRequestCard(
             Spacer(modifier = Modifier.height(10.dp))
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                color = when {
+                    isOverdue -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                    isDueWithin24h -> Color(0xFFFFF8E1)
+                    else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -930,12 +1026,26 @@ fun ActiveRequestCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.HourglassBottom, contentDescription = null, tint = EcoAmber, modifier = Modifier.size(16.dp))
+                        Icon(
+                            imageVector = Icons.Default.HourglassBottom,
+                            contentDescription = null,
+                            tint = if (isOverdue) MaterialTheme.colorScheme.error else EcoAmber,
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "Due: Within 48 hours",
+                            text = when {
+                                isOverdue -> "Past Due: Overdue by ${Math.abs(hoursRemaining)}h"
+                                isDueWithin24h -> "Due: In ~$hoursRemaining hours ⏳"
+                                else -> "Due: In ${hoursRemaining / 24} days"
+                            },
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                isOverdue -> MaterialTheme.colorScheme.error
+                                isDueWithin24h -> Color(0xFFE65100)
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
                         )
                     }
                     Text(

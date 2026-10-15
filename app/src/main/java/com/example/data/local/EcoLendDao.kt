@@ -12,6 +12,7 @@ import com.example.data.model.LendItem
 import com.example.data.model.Review
 import com.example.data.model.UserProfile
 import com.example.data.model.WishlistEntry
+import com.example.data.model.AvailabilityAlert
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -149,4 +150,32 @@ interface EcoLendDao {
 
     @Query("UPDATE wishlist_entries SET note = :note, targetDate = :targetDate, notifyWhenAvailable = :notify WHERE itemId = :itemId")
     suspend fun updateWishlistDetails(itemId: Long, note: String, targetDate: String, notify: Boolean)
+
+    // --- Availability Alerts ---
+    @Query("SELECT * FROM availability_alerts ORDER BY createdAtMillis DESC")
+    fun getAllAlerts(): Flow<List<AvailabilityAlert>>
+
+    @Query("SELECT * FROM availability_alerts WHERE isActive = 1")
+    suspend fun getActiveAlertsSync(): List<AvailabilityAlert>
+
+    @Query("SELECT * FROM availability_alerts WHERE id = :id")
+    suspend fun getAlertById(id: Long): AvailabilityAlert?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAlert(alert: AvailabilityAlert): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAlerts(alerts: List<AvailabilityAlert>)
+
+    @Update
+    suspend fun updateAlert(alert: AvailabilityAlert)
+
+    @Query("UPDATE availability_alerts SET isActive = :isActive WHERE id = :id")
+    suspend fun toggleAlertActive(id: Long, isActive: Boolean)
+
+    @Query("UPDATE availability_alerts SET matchCount = :matchCount, lastTriggeredMillis = :lastTriggered WHERE id = :id")
+    suspend fun updateAlertMatchStats(id: Long, matchCount: Int, lastTriggered: Long)
+
+    @Query("DELETE FROM availability_alerts WHERE id = :id")
+    suspend fun deleteAlert(id: Long)
 }
