@@ -1,92 +1,98 @@
-# Authentication System (Google Sign-In & Mobile Phone OTP)
+# Google Maps Neighborhood Explorer Implementation Plan
 
-A secure authentication architecture for EcoLend that integrates **Google Sign-In via Jetpack Credential Manager** backed by Firebase Authentication and a **Mobile Phone OTP Verification flow** with SMS code simulation. Users can freely browse community equipment in guest mode, with authentication smoothly gating actions that require trust (borrowing tools, listing equipment, sending messages, setting availability alerts).
+Integrate an interactive Google Maps experience for EcoLend that displays available tools and equipment across the user's neighborhood, incorporating privacy-first fuzzy radius circles, category filters, distance controls, and floating quick-borrow preview cards.
 
-## User Review & Critical Decisions
+---
+
+## User Review & Confirmed Decisions
 
 > [!IMPORTANT]
-> The following user preferences were confirmed during the interactive interview:
+> The following product requirements were selected during the interactive design interview:
 >
-> - **Confirmed Sign-In Methods**:
->   - **Google Sign-In** via Jetpack `CredentialManager` (`GetSignInWithGoogleOption`)
->   - **Mobile Phone OTP** (enter mobile phone number, receive 6-digit OTP code, verify and authenticate)
-> - **Confirmed Access Gating**:
->   - **Guest Browsing Allowed**: Visitors can explore the equipment feed, view radar map, and read reviews freely.
->   - **Action-Gated Authentication**: Tapping "Borrow", "Add Listing", "Chat with Lender", or managing personal alerts prompts a stylish Auth Gate modal / screen.
-> - **Confirmed Identity & Reputation Linking**:
->   - Logged-in credentials link directly with the user's `UserProfile`, preserving accumulated Karma Score (+420), diversion metrics (42.6 kg waste saved), and verified badge flairs.
+> - **Privacy Protection**: Fuzzy privacy circles (~0.3–0.5 mile radius) representing neighborhood pickup zones, strictly protecting exact homeowner porch addresses.
+> - **Marker Interaction**: Tapping any item pin opens a floating bottom preview card with photo, condition, deposit, and a 1-tap "Request Borrow" action.
+> - **Map Controls**: Top category filter chips, dynamic search radius distance slider (1–10 miles), and an animated "Recenter to My Location" floating button.
 
 ---
 
-## 1. Overview & Core Concept
+## 1. Architecture & Component Structure
 
-- **What It Does**: Provides neighborhood accountability and secure identity verification. Neighbors can authenticate using their Google account or verify their mobile phone number with a 6-digit OTP.
-- **Why Both**: Google Sign-In gives 1-tap simplicity, while phone verification establishes verified local trust for porch pickups and tool custody.
-- **Guest Mode Support**: Lowers friction by letting users discover neighborhood tools before committing to sign-in.
+```
+┌────────────────────────────────────────────────────────┐
+│  [📍 Oakridge Woods, Sector 4]     [Active Items: 8]   │
+│  [All] [Power Tools] [Lawn & Garden] [Cleaning] [DIY]  │
+├────────────────────────────────────────────────────────┤
+│  Radius Slider: 3.5 miles (●═══════════)               │
+├────────────────────────────────────────────────────────┤
+│                                                        │
+│                    🟢 [Drill Circle]                   │
+│                                                        │
+│             🔵 (My Location)                           │
+│                                                        │
+│                           🟢 [Mower Circle]            │
+│                                                        │
+│                                        [🎯 Recenter]   │
+│                                                        │
+├────────────────────────────────────────────────────────┤
+│  ┌──────────────────────────────────────────────────┐  │
+│  │ 🛠️ DeWalt 20V Cordless Brushless Drill           │  │
+│  │ Alex Green · 4.95 ★ · 0.4 mi away · $35 deposit   │  │
+│  │ [ View Full Details ]    [ Request Borrow 🤝 ]   │  │
+│  └──────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────┘
+```
+
+### Key Components
+
+1. **`GoogleNeighborhoodMap` (`com.example.ui.components.GoogleNeighborhoodMap.kt`)**:
+   - Integrates Google Maps Compose with custom map styling matching EcoLend's emerald/sage theme.
+   - Renders fuzzy privacy circles (`Circle`) around equipment drop-off zones with translucent fill (`#2E7D32` with 15% alpha) and eco-green borders, preventing precise home location identification.
+   - Renders custom markers (`Marker` / `MarkerComposable`) showing item category icon and availability status.
+   - Robust fallback mechanism: If Google Play Services or an external API key is unconfigured, seamlessly displays an interactive vector radar map view so the app runs reliably without crashes in any emulator environment.
+
+2. **Map Controls Overlay**:
+   - **Category Filter Chips**: Horizontal scrollable `FilterChip` row filtering map items in real-time.
+   - **Distance Radius Slider**: Smooth slider updating `viewModel.maxDistanceMiles` and dynamically adjusting map zoom / camera bounds.
+   - **Recenter FAB**: One-tap camera animation returning to user neighborhood center.
+
+3. **Floating Item Preview Card (`MapItemPreviewCard`)**:
+   - Slides up with smooth spring animation from the bottom when any marker is clicked.
+   - Displays item photo/icon, title, owner name with verified trust badge, deposit amount, and return condition.
+   - Actions: "Request Borrow" (gates guests via Neighborhood Trust Pass, then opens deposit authorization) and "View Details".
 
 ---
 
-## 2. User Experience & Visual Design
+## 2. Dependencies & Permissions
 
-### Key User Flows
+1. **Gradle Dependencies**:
+   - `com.google.maps.android:maps-compose`
+   - `com.google.android.gms:play-services-maps`
+   - `com.google.android.gms:play-services-location`
 
-1. **Sign-In / Auth Dialog & Screen (`AuthGateSheet` / `SignInDialog`)**
-   - Triggered either manually from the top app bar / Profile screen or when a guest tries to borrow or list an item.
-   - **Tab 1: Google Sign-In (Recommended)**:
-     - Prominent Google button with standard branding: *"Continue with Google"*.
-     - One-tap sign in through Jetpack Credential Manager.
-   - **Tab 2: Mobile Phone OTP**:
-     - Step 1: Input country code (+1) and 10-digit mobile phone number.
-     - Step 2: Tap *"Send Verification Code"*. A realistic OTP transmission trigger dispatches a 6-digit verification code with a toast / push preview.
-     - Step 3: Enter 6-digit OTP with auto-focus inputs, resend timer (30s), and *"Verify & Sign In"* button.
-
-2. **Action Gating Flow**
-   - When a guest taps **"Borrow"** on an item card or detail screen:
-     - Auth prompt appears: *"Sign in to complete your borrow request & authorize deposit hold"*.
-     - Upon successful authentication, automatically proceeds directly to the Payment / Borrow sheet.
-   - When a guest taps **"Add Listing"**:
-     - Prompts sign-in to associate the tool listing with their verified neighborhood profile.
-
-3. **Profile & Account Management**
-   - Profile screen displays authenticated status:
-     - Connected Google account email / verified mobile phone badge.
-     - One-tap **"Sign Out"** or **"Switch Account"** action.
-     - Verified Trust badge reflecting the authenticated state.
+2. **Manifest Declarations**:
+   - `<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />`
+   - `<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />`
+   - `<uses-permission android:name="android.permission.INTERNET" />`
+   - `<meta-data android:name="com.google.android.geo.API_KEY" android:value="${MAPS_API_KEY}" />`
 
 ---
 
-## 3. Technical Architecture & Implementation Steps
+## 3. Implementation Steps
 
-### Phase 1: Firebase Backend Provisioning (MANDATORY Handshake)
-- Run `show_aistudio_ui` with `ui_type: "firebase_setup"` and `requested_products: ["firestore"]`.
-- Halt turn and await user consent in the platform UI.
-- Verify terms via `GetFirebaseTos` RPC, then invoke `ProvisionFirebase` with:
-  - `package_name`: `com.aistudio.ecolend.npxjkm`
-  - `sha1_certificate`: `C2:D8:74:E7:83:5C:C8:7C:63:E2:79:2F:63:1A:C3:11:72:61:23:BB`
-  - `sha256_certificate`: `6A:1A:56:49:46:1B:06:A3:8A:69:2D:15:D8:0D:0A:77:2F:70:52:B1:BF:20:68:FE:2C:3B:94:40:2A:0C:19:A2`
-  - `requested_products`: `["firestore"]`
+1. **Configure Dependencies & Manifest**:
+   - Add `maps-compose` and `play-services-maps` to `gradle/libs.versions.toml` and `app/build.gradle.kts`.
+   - Update `AndroidManifest.xml` with permissions and Maps metadata tag.
 
-### Phase 2: Dependencies & Authentication Layer
-- Enable required dependencies in `app/build.gradle.kts`:
-  - `libs.firebase.auth`
-  - `libs.androidx.credentials`
-  - `libs.androidx.credentials.play.services`
-  - `libs.googleid`
-- Implement `AuthRepository` & state in `EcoLendRepository`:
-  - `AuthState`: `Unauthenticated` / `Guest`, `Authenticated(userId, email, phone, displayName, provider)`
-  - Google Sign-In helper using `CredentialManager.getCredential()` and `GetSignInWithGoogleOption`
-  - Phone OTP verification manager (phone input, OTP generation, validation)
+2. **Build `GoogleNeighborhoodMap.kt`**:
+   - Implement Compose `GoogleMap` container with camera position state centered on neighborhood coordinates (`37.7749, -122.4194` / Oakridge Woods).
+   - Calculate deterministic coordinates for each `LendItem` based on `distanceMiles` and bearing.
+   - Render `Circle` overlays for fuzzy address privacy.
+   - Render interactive markers with selected state highlights.
 
-### Phase 3: Auth UI & Gating Components
-- Create `AuthenticationDialog.kt`:
-  - Tabbed interface: **"Google Sign-In"** & **"Mobile Phone OTP"**
-  - Phone number formatter and 6-digit OTP code input boxes
-  - Visual security badges: *"256-bit encrypted community identity"*
-- Add Auth Gate interceptor in `EcoLendViewModel`:
-  - `isAuthenticated: StateFlow<Boolean>`
-  - `currentUserAccount: StateFlow<UserAccount?>`
-  - `requireAuth(action: () -> Unit)` to trigger sign-in dialog if unauthenticated
-- Update TopAppBar and Profile screen with login/logout status and avatar badge.
+3. **Enhance `ExploreMapScreen.kt`**:
+   - Integrate top search & category bar, radius distance slider, recenter FAB, and floating item preview card.
+   - Connect "Request Borrow" to `viewModel.startBorrowFlow(item)` with automatic authentication gating.
 
-### Phase 4: Compilation & Verification
-- Execute `compile_applet` to verify compilation and dependency resolution.
+4. **Compile & Test**:
+   - Run `compile_applet` to verify compilation.
+   - Run unit & Robolectric test suite (`gradle :app:testDebugUnitTest`) to ensure zero regressions.

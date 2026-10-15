@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import com.example.data.model.LendItem
 import com.example.ui.EcoLendViewModel
-import com.example.ui.components.NeighborhoodRadarMap
+import com.example.ui.components.GoogleNeighborhoodMap
 
 @Composable
 fun ExploreMapScreen(
@@ -19,15 +19,18 @@ fun ExploreMapScreen(
 ) {
     val items by viewModel.filteredItems.collectAsState()
     val maxDistance by viewModel.maxDistanceMiles.collectAsState()
+    val selectedCategory by viewModel.selectedCategory.collectAsState()
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .testTag("explore_map_screen")
     ) {
-        NeighborhoodRadarMap(
+        GoogleNeighborhoodMap(
             items = items,
             maxDistance = maxDistance,
+            selectedCategory = selectedCategory,
+            onCategorySelected = { viewModel.selectedCategory.value = it },
             onDistanceChange = { viewModel.maxDistanceMiles.value = it },
             onItemSelected = onItemClick,
             onStartBorrow = { viewModel.startBorrowFlow(it) }
